@@ -2,7 +2,6 @@
 
 ################################################################################
 # qBittorrent 4.3.9 + libtorrent v1.2.20 + Vertex + FileBrowser 一键安装脚本
-# v0.2
 # 适用于 Debian 10+ / Ubuntu 20.04+ (包括 RAID 环境)
 # 
 # 使用方法:
@@ -168,7 +167,7 @@ update() {
     DEBIAN_FRONTEND=noninteractive apt-get -qq update >/dev/null 2>&1
     DEBIAN_FRONTEND=noninteractive apt-get -y -qq upgrade -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" >/dev/null 2>&1
 
-    for pkg in sudo wget curl sysstat psmisc unzip jq net-tools lsof; do 
+    for pkg in sudo wget curl sysstat psmisc unzip jq; do 
         if [ -z $(which $pkg 2>/dev/null) ]; then
             wait_for_dpkg_lock
             DEBIAN_FRONTEND=noninteractive apt-get install $pkg -y -qq >/dev/null 2>&1
@@ -240,16 +239,28 @@ install_qBittorrent_() {
     local qb_port=$4
     local qb_incoming_port=$5
 
-    if pgrep -i -f qbittorrent > /dev/null; then
-        warn "qBittorrent 正在运行,正在停止..."
+    # 只停止当前用户的 qBittorrent 服务，不影响其他用户
+    if systemctl is-active --quiet qbittorrent-nox@$username 2>/dev/null; then
+        warn "检测到用户 $username 的 qBittorrent 正在运行,正在停止..."
         systemctl stop qbittorrent-nox@$username 2>/dev/null || true
-        pkill -9 -f qbittorrent
         sleep 2
     fi
 
+    # 检查二进制文件版本
     if [ -f /usr/bin/qbittorrent-nox ]; then
-        warn "检测到旧版本,正在删除..."
-        rm /usr/bin/qbittorrent-nox
+        current_version=$(/usr/bin/qbittorrent-nox --version 2>/dev/null | head -n1 || echo "unknown")
+        if [[ "$current_version" != *"4.3.9"* ]]; then
+            warn "检测到不同版本 ($current_version),正在更新..."
+            # 停止所有 qBittorrent 服务以安全替换二进制文件
+            for service in $(systemctl list-units --all 'qbittorrent-nox@*' --no-legend | awk '{print $1}'); do
+                systemctl stop "$service" 2>/dev/null || true
+            done
+            sleep 3
+            rm /usr/bin/qbittorrent-nox
+        else
+            info_2 "qBittorrent 4.3.9 二进制文件已存在,跳过下载..."
+            echo ""
+        fi
     fi
 
     if [[ $(uname -m) == "x86_64" ]]; then
@@ -263,21 +274,31 @@ install_qBittorrent_() {
         return 1
     fi
 
-    info_2 "下载 qBittorrent 4.3.9..."
-    wget -q $QB_URL -O /tmp/qbittorrent-nox
-    if [ $? -ne 0 ] || [ ! -f /tmp/qbittorrent-nox ]; then
-        fail "qBittorrent 下载失败"
-        return 1
+    # 只在二进制文件不存在时下载
+    if [ ! -f /usr/bin/qbittorrent-nox ]; then
+        info_2 "下载 qBittorrent 4.3.9..."
+        wget -q $QB_URL -O /tmp/qbittorrent-nox
+        if [ $? -ne 0 ] || [ ! -f /tmp/qbittorrent-nox ]; then
+            fail "qBittorrent 下载失败"
+            return 1
+        fi
+        chmod +x /tmp/qbittorrent-nox
+        mv /tmp/qbittorrent-nox /usr/bin/qbittorrent-nox
+        echo " 完成"
+        
+        # 重启所有之前停止的服务
+        for service in $(systemctl list-units --all 'qbittorrent-nox@*' --no-legend | awk '{print $1}'); do
+            service_user=$(echo "$service" | sed 's/qbittorrent-nox@\(.*\)\.service/\1/')
+            if [ "$service_user" != "$username" ]; then
+                systemctl start "$service" 2>/dev/null || true
+            fi
+        done
     fi
-    chmod +x /tmp/qbittorrent-nox
-    mv /tmp/qbittorrent-nox /usr/bin/qbittorrent-nox
-    echo " 完成"
 
     info_2 "下载密码生成器..."
     wget -q $PASS_GEN_URL -O /tmp/qb_password_gen
     if [ $? -ne 0 ] || [ ! -f /tmp/qb_password_gen ]; then
         fail "密码生成器下载失败"
-        rm /usr/bin/qbittorrent-nox
         return 1
     fi
     chmod +x /tmp/qb_password_gen
@@ -371,13 +392,30 @@ EOF
     systemctl start qbittorrent-nox@$username
 
     sleep 3
+    
+    # 增强的状态检查
     if ! systemctl is-active --quiet qbittorrent-nox@$username; then
         fail "qBittorrent 启动失败"
+        warn "查看详细日志: journalctl -u qbittorrent-nox@$username -n 50"
+        warn "查看服务状态: systemctl status qbittorrent-nox@$username"
         return 1
     fi
-    echo " 完成"
-
-    return 0
+    
+    # 验证进程是否真正运行
+    local retry_count=0
+    while [ $retry_count -lt 5 ]; do
+        if pgrep -u $username -f "qbittorrent-nox" > /dev/null; then
+            echo " 完成"
+            return 0
+        fi
+        sleep 1
+        retry_count=$((retry_count + 1))
+    done
+    
+    # 如果5秒后还没有进程，报错
+    fail "qBittorrent 进程未找到"
+    warn "查看详细日志: journalctl -u qbittorrent-nox@$username -n 50"
+    return 1
 }
 
 # ===== Vertex 安装函数 =====
