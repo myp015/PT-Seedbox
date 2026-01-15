@@ -135,6 +135,38 @@ prompt_instance_name() {
     local suffix=2
     local name
 
+    if command -v docker >/dev/null 2>&1; then
+        local max_docker_suffix
+        max_docker_suffix=$(docker ps -a --format '{{.Names}}' 2>/dev/null | awk -v base="$base" '
+            $0 ~ "^" base "[0-9]+$" {
+                sub("^" base, "", $0)
+                if ($0 + 0 > max) max = $0 + 0
+            }
+            END { print max + 0 }
+        ')
+        if [ "$max_docker_suffix" -ge "$suffix" ]; then
+            suffix=$((max_docker_suffix + 1))
+        fi
+    fi
+
+    if [ -n "$dir_prefix" ]; then
+        local max_dir_suffix
+        max_dir_suffix=$(ls -1 "${dir_prefix}${base}"* 2>/dev/null | awk -v base="$base" '
+            {
+                n=$0
+                sub(".*/", "", n)
+                if (n ~ "^" base "[0-9]+$") {
+                    sub("^" base, "", n)
+                    if (n + 0 > max) max = n + 0
+                }
+            }
+            END { print max + 0 }
+        ')
+        if [ "$max_dir_suffix" -ge "$suffix" ]; then
+            suffix=$((max_dir_suffix + 1))
+        fi
+    fi
+
     while true; do
         local default_name="${base}${suffix}"
         need_input "请输入 ${base} 实例名称 (默认: ${default_name}):"
