@@ -28,8 +28,9 @@ QB_PASS_GEN_X86_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/To
 QB_PASS_GEN_ARM_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/ARM64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qb_password_gen"
 
 DEFAULT_QB_WEBUI_PORT=18230
-# Vertex Docker 镜像
+DEFAULT_FILEBROWSER_PORT=8089
 DEFAULT_VERTEX_PORT=4500
+# Vertex Docker 镜像
 VERTEX_DOCKER_IMAGE="lswl/vertex:stable"
 
 # FileBrowser Docker 镜像
@@ -1503,7 +1504,22 @@ if [[ "$custom_ports" -eq 0 ]]; then
     fi
 fi
 
-
+# ===== FileBrowser 默认端口处理 =====
+# 没有使用 -o 自定义端口
+if [[ "$custom_ports" -eq 0 && -n "$filebrowser_install" ]]; then
+    if [[ -z "$filebrowser_port" ]]; then
+        if port_available "$DEFAULT_FILEBROWSER_PORT"; then
+            filebrowser_port=$DEFAULT_FILEBROWSER_PORT
+            register_port "$filebrowser_port"
+            info "FileBrowser 使用默认端口: $filebrowser_port"
+        else
+            warn "默认 FileBrowser 端口 8089 已占用，自动选择随机端口"
+            filebrowser_port=$(pick_free_port) || fail_exit "无法为 FileBrowser 分配端口"
+            register_port "$filebrowser_port"
+            info "FileBrowser 使用随机端口: $filebrowser_port"
+        fi
+    fi
+fi
 
 # ===== 环境检查 =====
 info "检查安装环境"
@@ -1893,21 +1909,9 @@ echo -e "\n"
 publicip=$(curl -s --max-time 5 https://ipinfo.io/ip 2>/dev/null || echo "无法获取")
 
 if [[ -n "$vertex_install_success" ]]; then
-    vertex_container_ip=""
-    vertex_bridge_gateway=""
-    if command -v docker >/dev/null 2>&1; then
-        vertex_container_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$vertex_name" 2>/dev/null)
-        vertex_bridge_gateway=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null)
-    fi
     echo "--------"
     info_w  "🌐 Vertex"
     boring_text "管理地址: http://$publicip:$vertex_port"
-    if [ -n "$vertex_container_ip" ]; then
-        boring_text "Docker 内网地址: $vertex_container_ip:3000"
-    fi
-    if [ -n "$vertex_bridge_gateway" ]; then
-        boring_text "如需通过内网连接qBit,请使用: $vertex_bridge_gateway:$qb_port"
-    fi
 fi
 
 if [[ -n "$qb_install_success" ]]; then
