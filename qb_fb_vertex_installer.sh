@@ -1478,12 +1478,12 @@ if [[ "$custom_ports" -eq 0 && -n "$vertex_install" ]]; then
         if port_available "$DEFAULT_VERTEX_PORT"; then
             vertex_port=$DEFAULT_VERTEX_PORT
             register_port "$vertex_port"
-            info "Vertex 使用默认端口: $vertex_port"
+            info "✓ Vertex 使用默认端口: $vertex_port"
         else
             warn "默认 Vertex 端口 4500 已占用，自动选择随机端口"
             vertex_port=$(pick_free_port) || fail_exit "无法为 Vertex 分配端口"
             register_port "$vertex_port"
-            info "Vertex 使用随机端口: $vertex_port"
+            info "✓ Vertex 使用随机端口: $vertex_port"
         fi
     fi
 fi
@@ -1511,12 +1511,12 @@ if [[ "$custom_ports" -eq 0 && -n "$filebrowser_install" ]]; then
         if port_available "$DEFAULT_FILEBROWSER_PORT"; then
             filebrowser_port=$DEFAULT_FILEBROWSER_PORT
             register_port "$filebrowser_port"
-            info "FileBrowser 使用默认端口: $filebrowser_port"
+            info "✓ FileBrowser 使用默认端口: $filebrowser_port"
         else
             warn "默认 FileBrowser 端口 8089 已占用，自动选择随机端口"
             filebrowser_port=$(pick_free_port) || fail_exit "无法为 FileBrowser 分配端口"
             register_port "$filebrowser_port"
-            info "FileBrowser 使用随机端口: $filebrowser_port"
+            info "✓ FileBrowser 使用随机端口: $filebrowser_port"
         fi
     fi
 fi
@@ -1936,7 +1936,7 @@ fi
 echo -e "\n"
 
 warn "建议重启系统以确保所有优化生效，如果无法打开网页，可能是防火墙没有放通端口"
-boring_text "  重启命令: reboot"
+info " 重启命令: reboot"
 
 seperator
 
