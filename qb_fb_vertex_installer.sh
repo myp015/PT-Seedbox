@@ -5,7 +5,7 @@
 # 适用于 Debian 10+ / Ubuntu 20.04+ (包括 RAID 环境)
 # 
 # 使用方法:
-# bash <(wget -qO- https://raw.githubusercontent.com/vivibudong/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh) -u 用户名 -p 密码 -c 缓存大小 -q 4.3.9 -l v1.2.20 -v
+# bash <(wget -qO- https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh) -u 用户名 -p 密码 -c 缓存大小 -q 4.3.9 -l v1.2.20 -v
 #
 # 参数说明:
 #   -u : 用户名
@@ -22,15 +22,16 @@
 #   -h : 显示帮助
 ################################################################################
 
-QB_NOX_X86_URL="https://github.com/vivibudong/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/x86_64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qbittorrent-nox"
-QB_NOX_ARM_URL="https://github.com/vivibudong/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/ARM64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qbittorrent-nox"
-QB_PASS_GEN_X86_URL="https://github.com/vivibudong/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/x86_64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qb_password_gen"
-QB_PASS_GEN_ARM_URL="https://github.com/vivibudong/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/ARM64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qb_password_gen"
+QB_NOX_X86_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/x86_64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qbittorrent-nox"
+QB_NOX_ARM_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/ARM64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qbittorrent-nox"
+QB_PASS_GEN_X86_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/x86_64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qb_password_gen"
+QB_PASS_GEN_ARM_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/ARM64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qb_password_gen"
 
 # Vertex Docker 镜像
 VERTEX_DOCKER_IMAGE="lswl/vertex:stable"
 
 # FileBrowser Docker 镜像
+#FILEBROWSER_DOCKER_IMAGE="80x86/filebrowser:latest"
 FILEBROWSER_DOCKER_IMAGE="filebrowser/filebrowser:latest"
 
 # ===== 随机端口生成函数 =====
@@ -217,6 +218,14 @@ sanitize_container_name() {
 }
 
 # ===== 颜色输出函数 =====
+output_file="/root/manager_address.txt"
+info_w() {
+    local msg="$1"
+    tput sgr0; tput setaf 2; tput bold
+    echo "$msg"
+    tput sgr0
+    echo "$msg" >> "$output_file"
+}
 info() {
     tput sgr0; tput setaf 2; tput bold
     echo "$1"
@@ -228,9 +237,13 @@ info_2() {
     tput sgr0
 }
 boring_text() {
+    local msg="$1"
     tput sgr0; tput setaf 7; tput dim
-    echo "$1"
+    echo "$msg"
     tput sgr0
+
+    # 写入文件（不带颜色控制符）
+    echo "$msg" >> "$output_file"
 }
 need_input() {
     tput sgr0; tput setaf 6; tput bold
@@ -568,9 +581,10 @@ install_vertex_() {
 
     info_2 "启动 Vertex 容器..."
     docker run -d --name "$vertex_name" --restart unless-stopped \
+        --network host \
         -v "$vertex_data_dir":/vertex \
-        -p "$vertex_port":3000 \
         -e TZ=Asia/Shanghai \
+        -e PORT=$vertex_port \
         $VERTEX_DOCKER_IMAGE >/tmp/vertex_run.log 2>&1
 
     if [ $? -ne 0 ]; then
@@ -1421,7 +1435,7 @@ while getopts "u:p:c:q:l:vfod:k:th" opt; do
             boring_text "  -h : 显示帮助"
             seperator
             info "卸载方法:"
-            boring_text "  bash <(wget -qO- https://raw.githubusercontent.com/vivibudong/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh) --uninstall"
+            boring_text "  bash <(wget -qO- https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh) --uninstall"
             seperator
             exit 0
             ;;
@@ -1430,6 +1444,36 @@ while getopts "u:p:c:q:l:vfod:k:th" opt; do
             ;;
     esac
 done
+
+if [[ -z "$password" ]]; then
+    fail_exit "必须使用 -p 指定密码，或使用 -p random"
+fi
+
+if [[ "$password" == "random" ]]; then
+    password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)
+    info "✓ 已生成随机密码: $password"
+fi
+
+
+# ===== Vertex 默认端口处理 =====
+DEFAULT_VERTEX_PORT=4500
+
+# 没有使用 -o 自定义端口
+if [[ "$custom_ports" -eq 0 && -n "$vertex_install" ]]; then
+    if [[ -z "$vertex_port" ]]; then
+        if port_available "$DEFAULT_VERTEX_PORT"; then
+            vertex_port=$DEFAULT_VERTEX_PORT
+            register_port "$vertex_port"
+            info "Vertex 使用默认端口: $vertex_port"
+        else
+            warn "默认 Vertex 端口 4500 已占用，自动选择随机端口"
+            vertex_port=$(pick_free_port) || fail_exit "无法为 Vertex 分配端口"
+            register_port "$vertex_port"
+            info "Vertex 使用随机端口: $vertex_port"
+        fi
+    fi
+fi
+
 
 # ===== 环境检查 =====
 info "检查安装环境"
@@ -1826,7 +1870,7 @@ if [[ -n "$vertex_install_success" ]]; then
         vertex_bridge_gateway=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null)
     fi
     echo "--------"
-    info "🌐 Vertex"
+    info_w  "🌐 Vertex"
     boring_text "管理地址: http://$publicip:$vertex_port"
     if [ -n "$vertex_container_ip" ]; then
         boring_text "Docker 内网地址: $vertex_container_ip:3000"
@@ -1838,19 +1882,19 @@ fi
 
 if [[ -n "$qb_install_success" ]]; then
     echo "--------"
-    info "🧩 qBittorrent"
+    info_w  "🧩 qBittorrent"
     boring_text "管理地址: http://$publicip:$qb_port"
 fi
 
 if [[ -n "$filebrowser_install_success" ]]; then
     echo "--------"
-    info "📁 FileBrowser"
+    info_w  "📁 FileBrowser"
     boring_text "管理地址: http://$publicip:$filebrowser_port"
 fi
 
 echo "--------"
 if [[ -n "$qb_install_success" ]] || [[ -n "$vertex_install_success" ]] || [[ -n "$filebrowser_install_success" ]]; then
-    info "🔐 账号信息"
+    info_w  "🔐 账号信息"
     boring_text "用户名: $username"
     boring_text "密码: $password"
     echo "--------"
