@@ -5,7 +5,7 @@
 # 适用于 Debian 10+ / Ubuntu 20.04+ (包括 RAID 环境)
 # 
 # 使用方法:
-# bash <(wget -qO- https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh) -u 用户名 -p 密码 -c 缓存大小 -q 4.3.9 -l v1.2.20 -v
+# bash <(wget -qO- https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh) -t -u ptseedbox2026 -p random -c 2048 -v -f
 #
 # 参数说明:
 #   -u : 用户名
@@ -27,7 +27,9 @@ QB_NOX_ARM_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent
 QB_PASS_GEN_X86_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/x86_64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qb_password_gen"
 QB_PASS_GEN_ARM_URL="https://github.com/myp015/PT-Seedbox/raw/refs/heads/main/Torrent%20Clients/qBittorrent/ARM64/qBittorrent-4.3.9%20-%20libtorrent-v1.2.20/qb_password_gen"
 
+DEFAULT_QB_WEBUI_PORT=18230
 # Vertex Docker 镜像
+DEFAULT_VERTEX_PORT=4500
 VERTEX_DOCKER_IMAGE="lswl/vertex:stable"
 
 # FileBrowser Docker 镜像
@@ -510,10 +512,17 @@ Accepted=true
 Cookies=@Invalid()
 
 [Preferences]
+Advanced\AnonymousMode=true
+Connection\GlobalDLLimit=164000
 Connection\PortRangeMin=$qb_incoming_port
+Connection\alt_speeds_on=false
 Downloads\DiskWriteCacheSize=$qb_cache
 Downloads\SavePath=/home/$username/qbittorrent/Downloads/
+General\Locale=zh
 Queueing\QueueingEnabled=false
+WebUI\AuthSubnetWhitelist=@Invalid()
+WebUI\ClickjackingProtection=false
+WebUI\LocalHostAuth=false
 WebUI\Password_PBKDF2="@ByteArray($PBKDF2password)"
 WebUI\Port=$qb_port
 WebUI\Username=$username
@@ -1418,14 +1427,13 @@ while getopts "u:p:c:q:l:vfod:k:th" opt; do
             info "qBittorrent 4.3.9 + Vertex + FileBrowser 一键安装脚本"
             seperator
             info "使用方法:"
-            boring_text "  bash <(wget -qO- 你的脚本地址) -u 用户名 -p 密码 -c 2048 -q 4.3.9 -l v1.2.20 -v -f"
+            boring_text "  bash <(wget -qO- 你的脚本地址) -u 用户名 -p 密码 -c 2048 -q  -v -f"
             seperator
             info "参数说明:"
             boring_text "  -u : 用户名"
             boring_text "  -p : 密码"
             boring_text "  -c : qBittorrent 缓存大小 (MiB)"
             boring_text "  -q : qBittorrent 版本 (4.3.9)"
-            boring_text "  -l : libtorrent 版本 (v1.2.20)"
             boring_text "  -v : 安装 Vertex"
             boring_text "  -f : 安装 FileBrowser"
             boring_text "  -d : Vertex data 目录 ZIP 下载链接 (可选)"
@@ -1456,8 +1464,6 @@ fi
 
 
 # ===== Vertex 默认端口处理 =====
-DEFAULT_VERTEX_PORT=4500
-
 # 没有使用 -o 自定义端口
 if [[ "$custom_ports" -eq 0 && -n "$vertex_install" ]]; then
     if [[ -z "$vertex_port" ]]; then
@@ -1473,6 +1479,23 @@ if [[ "$custom_ports" -eq 0 && -n "$vertex_install" ]]; then
         fi
     fi
 fi
+
+# 没有使用 -o 自定义端口
+if [[ "$custom_ports" -eq 0 ]]; then
+    if [[ -z "$qb_port" ]]; then
+        if port_available "$DEFAULT_QB_WEBUI_PORT"; then
+            qb_port=$DEFAULT_QB_WEBUI_PORT
+            register_port "$qb_port"
+            info "✓ qBittorrent WebUI 使用默认端口: $qb_port"
+        else
+            warn "默认 qBittorrent WebUI 端口 $DEFAULT_QB_WEBUI_PORT 被占用，自动分配端口"
+            qb_port=$(pick_free_port) || fail_exit "无法为 qBittorrent WebUI 分配端口"
+            register_port "$qb_port"
+            info "✓ qBittorrent WebUI 使用随机端口: $qb_port"
+        fi
+    fi
+fi
+
 
 
 # ===== 环境检查 =====
