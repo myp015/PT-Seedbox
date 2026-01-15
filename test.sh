@@ -44,10 +44,24 @@ port_in_use() {
     local port=$1
 
     if command -v ss >/dev/null 2>&1; then
-        ss -lntuH 2>/dev/null | awk '{print $5}' | sed 's/\[//; s/\]//' | grep -E "[:.]$port$" -q
+        ss -lntuH 2>/dev/null | awk -v p="$port" '
+            {
+                gsub(/\[|\]/, "", $5)
+                n=split($5, a, ":")
+                if (a[n] == p) found=1
+            }
+            END { exit !found }
+        '
         return $?
     elif command -v netstat >/dev/null 2>&1; then
-        netstat -lntu 2>/dev/null | awk 'NR>2{print $4}' | sed 's/\[//; s/\]//' | grep -E "[:.]$port$" -q
+        netstat -lntu 2>/dev/null | awk -v p="$port" '
+            NR>2 {
+                gsub(/\[|\]/, "", $4)
+                n=split($4, a, ":")
+                if (a[n] == p) found=1
+            }
+            END { exit !found }
+        '
         return $?
     else
         return 1
@@ -129,7 +143,7 @@ prompt_instance_name() {
             name="$default_name"
         fi
         if command -v docker >/dev/null 2>&1; then
-            if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qw "$name"; then
+            if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Fxq "$name"; then
                 warn "实例名称已存在: $name"
                 suffix=$((suffix + 1))
                 continue
@@ -467,7 +481,7 @@ install_vertex_() {
         return 1
     fi
 
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qw "$vertex_name"; then
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Fxq "$vertex_name"; then
         warn "Vertex 容器已存在,正在删除旧容器..."
         docker stop "$vertex_name" 2>/dev/null || true
         docker rm "$vertex_name" 2>/dev/null || true
@@ -499,7 +513,13 @@ install_vertex_() {
         -v "$vertex_data_dir":/vertex \
         -p "$vertex_port":3000 \
         -e TZ=Asia/Shanghai \
-        $VERTEX_DOCKER_IMAGE >/dev/null 2>&1
+        $VERTEX_DOCKER_IMAGE >/tmp/vertex_run.log 2>&1
+
+    if [ $? -ne 0 ]; then
+        warn "Vertex 启动失败,请检查端口或容器日志"
+        tail -n 5 /tmp/vertex_run.log 2>/dev/null || true
+        return 1
+    fi
 
     sleep 5
 
@@ -640,7 +660,7 @@ install_filebrowser_() {
         return 1
     fi
 
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qw "$fb_name"; then
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Fxq "$fb_name"; then
         warn "FileBrowser 容器已存在,正在删除旧容器..."
         docker stop "$fb_name" 2>/dev/null || true
         docker rm "$fb_name" 2>/dev/null || true
@@ -673,7 +693,13 @@ install_filebrowser_() {
         -v /home/$username/qbittorrent:/srv \
         -v "$fb_data_dir":/database \
         -p "$fb_port":80 \
-        $FILEBROWSER_DOCKER_IMAGE >/dev/null 2>&1
+        $FILEBROWSER_DOCKER_IMAGE >/tmp/filebrowser_run.log 2>&1
+
+    if [ $? -ne 0 ]; then
+        warn "FileBrowser 启动失败,请检查端口或容器日志"
+        tail -n 5 /tmp/filebrowser_run.log 2>/dev/null || true
+        return 1
+    fi
 
     sleep 5
 
@@ -1499,7 +1525,7 @@ if [[ -n "$filebrowser_install" ]] && [ -z "$filebrowser_port" ]; then
 fi
 
 if [[ -n "$vertex_install" ]] && command -v docker >/dev/null 2>&1; then
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qw "$vertex_name"; then
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Fxq "$vertex_name"; then
         need_input "检测到 Vertex 已安装,是否新增实例? [Y/n]:"
         read -r confirm
         if [[ ! "$confirm" =~ ^[Nn]$ ]]; then
@@ -1510,7 +1536,7 @@ if [[ -n "$vertex_install" ]] && command -v docker >/dev/null 2>&1; then
 fi
 
 if [[ -n "$filebrowser_install" ]] && command -v docker >/dev/null 2>&1; then
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qw "$filebrowser_name"; then
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -Fxq "$filebrowser_name"; then
         need_input "检测到 FileBrowser 已安装,是否新增实例? [Y/n]:"
         read -r confirm
         if [[ ! "$confirm" =~ ^[Nn]$ ]]; then
