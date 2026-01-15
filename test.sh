@@ -1440,7 +1440,7 @@ if [[ "$OS" =~ "Debian" ]]; then
 fi
 
 if [[ "$OS" =~ "Ubuntu" ]]; then
-    if [[ ! "$VER" =~ "20" ]] && [[ ! "$VER" =~ "22" ]] && [[ ! "$VER" =~ "23" ]] && [[ ! "$VER" =~ "24" ]]; then
+    if [[ ! "$VER" =~ "20" ]] && [[ ! "$VER" =~ "22" ]] && [[ ! "$VER" =~ "23" ]] && [[ ! "$VER" =~ "24" ]] && [[ ! "$VER" =~ "25" ]]; then
         fail "$OS $VER 不支持"
         info "仅支持 Ubuntu 20.04+"
         exit 1
