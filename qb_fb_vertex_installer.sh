@@ -470,23 +470,30 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-    local disk_name=$(lsblk -nd --output NAME 2>/dev/null | grep -v '^md' | head -n1)
-    local disktype=1
-    if [ -n "$disk_name" ] && [ -f /sys/block/$disk_name/queue/rotational ]; then
-        disktype=$(cat /sys/block/$disk_name/queue/rotational)
-    fi
+	systemd-detect-virt > /dev/null
+	if [ $? -eq 0 ]; then
+		warn "Virtualization is detected, skipping some of the tunning"
+		aio=8
+		low_buffer=3072
+		buffer=15360
+		buffer_factor=200
+	else
+		#Determine if it is a SSD or a HDD
+		disk_name=$(printf $(lsblk | grep -m1 'disk' | awk '{print $1}'))
+		disktype=$(cat /sys/block/$disk_name/queue/rotational)
+		if [ "${disktype}" == 0 ]; then
+			aio=12
+			low_buffer=5120
+			buffer=20480
+			buffer_factor=250
+		else
+			aio=4
+			low_buffer=3072
+			buffer=10240
+			buffer_factor=150
+		fi
+	fi
 
-    if [ "${disktype}" == 0 ]; then
-        aio=12
-        low_buffer=5120
-        buffer=20480
-        buffer_factor=250
-    else
-        aio=4
-        low_buffer=3072
-        buffer=10240
-        buffer_factor=150
-    fi
 
     info_2 "生成密码哈希..."
     PBKDF2password=$(/tmp/qb_password_gen $password)
