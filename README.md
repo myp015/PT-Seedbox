@@ -10,14 +10,14 @@
 ### 我是小白我想一键（及时修改密码）
 
 ```bash
-bash <(wget -qO- [https://s.v1v1.de/seedbox](https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh)) -t -u ptseedbox2026 -p random -c 1024 -v -f
+bash <(wget -qO- https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh)) -t -u ptseedbox2026 -p random -c 1024 -v -f
 ```
 
 
 ### 基础安装（仅 qBittorrent）
 
 ```bash
-bash <(wget -qO- https://s.v1v1.de/seedbox) -t -u 用户名 -p 密码 -c 2048
+bash <(wget -qO- https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/main/qb_fb_vertex_installer.sh) -t -u 用户名 -p 密码 -c 2048
 ```
 
 ### 完整安装（qBittorrent + Vertex + FileBrowser）
@@ -122,6 +122,7 @@ bash <(wget -qO- https://raw.githubusercontent.com/myp015/PT-Seedbox/refs/heads/
 ### License
 
 his project is licensed under the [MIT License](LICENSE), allowing free use, modification, and distribution with proper attribution.
+
 
 
 
