@@ -662,9 +662,17 @@ install_vertex_() {
                                     jq --arg url "http://127.0.0.1:$qb_port" \
                                        --arg port "$qb_port" \
                                        --arg username "$username" \
-                                       --arg password "$password" \
-                                       '.clientUrl = $url | .port = $port | .username = $username | .password = $password' \
-                                       "$client_file" > "${client_file}.tmp" && \
+                                       --arg password "$password" '
+									if (.clientUrl // "" | contains("127.0.0.1")) then
+							           .clientUrl = $url
+  							          | .port = $port
+ 							          | .username = $username
+						              | .password = $password
+							        else
+  							       	  .username = $username
+ 						         	  | .password = $password
+							        end
+                                     ' "$client_file" > "${client_file}.tmp" && \
                                        mv "${client_file}.tmp" "$client_file"
                                     
                                     if [ $? -eq 0 ]; then
