@@ -621,7 +621,10 @@ install_vertex_() {
     # 🆕 ===== 恢复自定义 data 目录 (如果提供了下载链接) =====
     if [[ -n "$vertex_data_url" ]]; then
         info_2 "检测到自定义 data 配置,正在恢复..."
-        
+		
+		#添加对咖啡、麒麟等PT小站的抓取免费的支持
+		docker exec -it vertex sed -i "/'pt.btschool.club': _free,/a \  'pt.xingyungept.org': _free,\n  'ptcafe.club': _free,\n  'crabpt.vip': _free,\n  'ptsbao.club': _free,\n  'www.pttime.org': _free,\n  'kufei.org': _free,\n  'www.hdkyl.in': _free,\n  'www.agsvpt.com': _free,\n  'hdtime.org': _free," /app/vertex/app/libs/scrape.js      
+		
         # 停止 Vertex 容器
         docker stop "$vertex_name" >/dev/null 2>&1
         sleep 3
